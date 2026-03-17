@@ -71,15 +71,22 @@ function BuildCommand(instanceTag, command, attribute, index, value)
   return table.concat(parts, " ")
 end
 
+-- Update a channel's toggle button legend to reflect its state
+function UpdateButtonLegend(channel, stateOn)
+  Controls["State" .. channel].String = stateOn and "ON" or "OFF"
+end
+
 -- Get the current state for a single channel
 function GetState(channel)
   local cmd = BuildCommand(InstanceTag, "get", "state", channel)
   SendCommand(cmd, function(response)
     local val = response:match('"value"%s*:%s*(%a+)')
     if val then
+      local boolVal = (val == "true")
       UpdatingFromDevice = true
-      Controls["State" .. channel].Boolean = (val == "true")
+      Controls["State" .. channel].Boolean = boolVal
       UpdatingFromDevice = false
+      UpdateButtonLegend(channel, boolVal)
       print("Tesira LogicState [" .. InstanceTag .. "]: ch" .. channel .. " state = " .. val)
     else
       print("Tesira LogicState [" .. InstanceTag .. "]: GetState ch" .. channel .. " unexpected: " .. response)
@@ -118,8 +125,8 @@ function RegisterSubscriptions()
     local token = BaseToken .. "_state" .. ch
     local cmd = BuildCommand(InstanceTag, "subscribe", "state", ch, token) .. " 500"
     Notifications.Publish("tesira." .. SystemId .. ".subscribe", token .. "|" .. cmd)
+    print("Tesira LogicState [" .. InstanceTag .. "]: registered state subscription ch" .. ch .. " (" .. token .. ")")
   end
-  print("Tesira LogicState [" .. InstanceTag .. "]: registered " .. NumChannels .. " state subscription(s)")
 end
 
 -- Unregister subscriptions before reinit
@@ -169,14 +176,19 @@ function Initialize()
   for ch = 1, NumChannels do
     local token = BaseToken .. "_state" .. ch
     local capturedCh = ch
+    local pushChannel = "tesira." .. SystemId .. ".push." .. token
+    print("Tesira LogicState [" .. InstanceTag .. "]: subscribing to push channel: " .. pushChannel)
     local noteId = Notifications.Subscribe(
-      "tesira." .. SystemId .. ".push." .. token,
+      pushChannel,
       function(id, data)
+        print("Tesira LogicState [" .. InstanceTag .. "]: push ch" .. capturedCh .. " raw data: [" .. tostring(data) .. "]")
         local trimmed = data:match("^%s*(.-)%s*$") or ""
         Timer.CallAfter(function()
+          local boolVal = (trimmed == "true")
           UpdatingFromDevice = true
-          Controls["State" .. capturedCh].Boolean = (trimmed == "true")
+          Controls["State" .. capturedCh].Boolean = boolVal
           UpdatingFromDevice = false
+          UpdateButtonLegend(capturedCh, boolVal)
         end, 0)
       end
     )
@@ -204,6 +216,11 @@ function Initialize()
   IsInitialized = true
   Controls["Status"].Value = 0
   Controls["Status"].String = ""
+
+  -- Set initial button legends
+  for ch = 1, NumChannels do
+    UpdateButtonLegend(ch, Controls["State" .. ch].Boolean)
+  end
 
   -- Register Tesira subscriptions
   RegisterSubscriptions()
@@ -233,6 +250,7 @@ for i = 1, NumChannels do
   Controls["State" .. idx].EventHandler = function(ctl)
     if IsInitialized and not UpdatingFromDevice then
       SetState(idx, ctl.Boolean)
+      UpdateButtonLegend(idx, ctl.Boolean)
     end
   end
 end

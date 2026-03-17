@@ -11,20 +11,12 @@ if CurrentPage == "Control" then
     Size = { 240, 32 }
   })
 
-  -- Status LED
-  layout["Status"] = {
-    PrettyName = "Status",
-    Style = "StatusBullet",
-    Position = { 6, 42 },
-    Size = { 16, 16 }
-  }
-
   -- Last action result
   layout["LastAction"] = {
     PrettyName = "Last Action",
     Style = "Text",
-    Position = { 26, 40 },
-    Size = { 204, 20 },
+    Position = { 6, 40 },
+    Size = { 224, 20 },
     FontSize = 10,
     IsReadOnly = true
   }
@@ -104,11 +96,29 @@ elseif CurrentPage == "Setup" then
     Size = { 300, 32 }
   })
 
+  -- Status
+  table.insert(graphics, {
+    Type = "Label",
+    Text = "Status",
+    Position = { 5, 44 },
+    Size = { 90, 16 },
+    FontSize = 10,
+    HTextAlign = "Right"
+  })
+  layout["Status"] = {
+    PrettyName = "Setup~Status",
+    Style = "Text",
+    Position = { 100, 42 },
+    Size = { 106, 20 },
+    FontSize = 10,
+    IsReadOnly = true
+  }
+
   -- System ID
   table.insert(graphics, {
     Type = "Label",
     Text = "System ID",
-    Position = { 5, 44 },
+    Position = { 5, 70 },
     Size = { 90, 16 },
     FontSize = 10,
     HTextAlign = "Right"
@@ -116,14 +126,14 @@ elseif CurrentPage == "Setup" then
   table.insert(graphics, {
     Type = "Label",
     Text = "(match Controller plugin)",
-    Position = { 210, 44 },
+    Position = { 210, 70 },
     Size = { 88, 16 },
     FontSize = 8
   })
   layout["SystemId"] = {
     PrettyName = "Setup~System ID",
     Style = "Text",
-    Position = { 100, 42 },
+    Position = { 100, 68 },
     Size = { 106, 20 },
     FontSize = 10
   }

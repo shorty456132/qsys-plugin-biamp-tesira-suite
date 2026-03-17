@@ -10,19 +10,11 @@ if CurrentPage == "Control" then
     Size = { 160, 32 }
   })
 
-  -- Status LED (top-left of control area)
-  layout["Status"] = {
-    PrettyName = "Status",
-    Style = "StatusBullet",
-    Position = { 6, 42 },
-    Size = { 14, 14 }
-  }
-
   -- Vertical fader
   layout["Level"] = {
     PrettyName = "Level",
     Style = "Fader",
-    Position = { 28, 40 },
+    Position = { 10, 40 },
     Size = { 34, 150 },
     FontSize = 10
   }
@@ -32,8 +24,8 @@ if CurrentPage == "Control" then
     PrettyName = "Mute",
     Style = "Button",
     ButtonStyle = "Toggle",
-    Position = { 72, 100 },
-    Size = { 74, 36 },
+    Position = { 54, 100 },
+    Size = { 92, 36 },
     FontSize = 14,
     Legend = "MUTE",
     Color = { 213, 0, 0 }
@@ -43,7 +35,7 @@ if CurrentPage == "Control" then
   table.insert(graphics, {
     Type = "Label",
     Text = "dB",
-    Position = { 28, 196 },
+    Position = { 10, 196 },
     Size = { 34, 14 },
     FontSize = 8,
     HTextAlign = "Center"
@@ -58,11 +50,29 @@ elseif CurrentPage == "Setup" then
     Size = { 300, 32 }
   })
 
+  -- Status
+  table.insert(graphics, {
+    Type = "Label",
+    Text = "Status",
+    Position = { 5, 44 },
+    Size = { 90, 16 },
+    FontSize = 10,
+    HTextAlign = "Right"
+  })
+  layout["Status"] = {
+    PrettyName = "Setup~Status",
+    Style = "Text",
+    Position = { 100, 42 },
+    Size = { 106, 20 },
+    FontSize = 10,
+    IsReadOnly = true
+  }
+
   -- System ID
   table.insert(graphics, {
     Type = "Label",
     Text = "System ID",
-    Position = { 5, 44 },
+    Position = { 5, 70 },
     Size = { 90, 16 },
     FontSize = 10,
     HTextAlign = "Right"
@@ -70,14 +80,14 @@ elseif CurrentPage == "Setup" then
   table.insert(graphics, {
     Type = "Label",
     Text = "(match Controller plugin)",
-    Position = { 210, 44 },
+    Position = { 210, 70 },
     Size = { 88, 16 },
     FontSize = 8
   })
   layout["SystemId"] = {
     PrettyName = "Setup~System ID",
     Style = "Text",
-    Position = { 100, 42 },
+    Position = { 100, 68 },
     Size = { 106, 20 },
     FontSize = 10
   }
@@ -86,7 +96,7 @@ elseif CurrentPage == "Setup" then
   table.insert(graphics, {
     Type = "Label",
     Text = "Instance Tag",
-    Position = { 5, 70 },
+    Position = { 5, 96 },
     Size = { 90, 16 },
     FontSize = 10,
     HTextAlign = "Right"
@@ -94,14 +104,14 @@ elseif CurrentPage == "Setup" then
   table.insert(graphics, {
     Type = "Label",
     Text = "(from Tesira Designer)",
-    Position = { 210, 70 },
+    Position = { 210, 96 },
     Size = { 88, 16 },
     FontSize = 8
   })
   layout["InstanceTag"] = {
     PrettyName = "Setup~Instance Tag",
     Style = "Text",
-    Position = { 100, 68 },
+    Position = { 100, 94 },
     Size = { 106, 20 },
     FontSize = 10
   }
@@ -110,7 +120,7 @@ elseif CurrentPage == "Setup" then
   table.insert(graphics, {
     Type = "Label",
     Text = "Channel",
-    Position = { 5, 96 },
+    Position = { 5, 122 },
     Size = { 90, 16 },
     FontSize = 10,
     HTextAlign = "Right"
@@ -118,14 +128,14 @@ elseif CurrentPage == "Setup" then
   table.insert(graphics, {
     Type = "Label",
     Text = "(1-based)",
-    Position = { 210, 96 },
+    Position = { 210, 122 },
     Size = { 88, 16 },
     FontSize = 8
   })
   layout["ChannelIndex"] = {
     PrettyName = "Setup~Channel Index",
     Style = "Text",
-    Position = { 100, 94 },
+    Position = { 100, 120 },
     Size = { 50, 20 },
     FontSize = 10
   }

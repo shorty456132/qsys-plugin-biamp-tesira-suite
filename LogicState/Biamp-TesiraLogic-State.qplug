@@ -145,19 +145,11 @@ function GetControlLayout(props)
       Size = { 240, 32 }
     })
 
-    -- Status LED
-    layout["Status"] = {
-      PrettyName = "Status",
-      Style = "StatusBullet",
-      Position = { 6, 42 },
-      Size = { 16, 16 }
-    }
-
     -- Column headers
     table.insert(graphics, {
       Type = "Label",
       Text = "Ch",
-      Position = { 26, 42 },
+      Position = { 5, 40 },
       Size = { 22, 16 },
       FontSize = 9,
       HTextAlign = "Center"
@@ -165,7 +157,7 @@ function GetControlLayout(props)
     table.insert(graphics, {
       Type = "Label",
       Text = "State",
-      Position = { 52, 42 },
+      Position = { 31, 40 },
       Size = { 50, 16 },
       FontSize = 9,
       HTextAlign = "Center"
@@ -173,14 +165,14 @@ function GetControlLayout(props)
     table.insert(graphics, {
       Type = "Label",
       Text = "Label",
-      Position = { 106, 42 },
-      Size = { 124, 16 },
+      Position = { 85, 40 },
+      Size = { 145, 16 },
       FontSize = 9,
       HTextAlign = "Left"
     })
 
     -- Channel rows
-    local rowY = 62
+    local rowY = 58
     local rowHeight = 28
 
     for i = 1, NumChannels do
@@ -190,7 +182,7 @@ function GetControlLayout(props)
       table.insert(graphics, {
         Type = "Label",
         Text = tostring(i),
-        Position = { 26, y + 4 },
+        Position = { 5, y + 4 },
         Size = { 22, 16 },
         FontSize = 10,
         HTextAlign = "Center"
@@ -201,7 +193,7 @@ function GetControlLayout(props)
         PrettyName = string.format("States~Channel %i~State", i),
         Style = "Button",
         ButtonStyle = "Toggle",
-        Position = { 52, y },
+        Position = { 31, y },
         Size = { 50, 24 },
         FontSize = 10,
         Legend = "OFF"
@@ -211,8 +203,8 @@ function GetControlLayout(props)
       layout["ChannelLabel" .. i] = {
         PrettyName = string.format("States~Channel %i~Label", i),
         Style = "Text",
-        Position = { 106, y + 2 },
-        Size = { 124, 20 },
+        Position = { 85, y + 2 },
+        Size = { 145, 20 },
         FontSize = 10,
         IsReadOnly = true
       }
@@ -227,11 +219,29 @@ function GetControlLayout(props)
       Size = { 300, 32 }
     })
 
+    -- Status
+    table.insert(graphics, {
+      Type = "Label",
+      Text = "Status",
+      Position = { 5, 44 },
+      Size = { 90, 16 },
+      FontSize = 10,
+      HTextAlign = "Right"
+    })
+    layout["Status"] = {
+      PrettyName = "Setup~Status",
+      Style = "Text",
+      Position = { 100, 42 },
+      Size = { 106, 20 },
+      FontSize = 10,
+      IsReadOnly = true
+    }
+
     -- System ID
     table.insert(graphics, {
       Type = "Label",
       Text = "System ID",
-      Position = { 5, 44 },
+      Position = { 5, 70 },
       Size = { 90, 16 },
       FontSize = 10,
       HTextAlign = "Right"
@@ -239,14 +249,14 @@ function GetControlLayout(props)
     table.insert(graphics, {
       Type = "Label",
       Text = "(match Controller plugin)",
-      Position = { 210, 44 },
+      Position = { 210, 70 },
       Size = { 88, 16 },
       FontSize = 8
     })
     layout["SystemId"] = {
       PrettyName = "Setup~System ID",
       Style = "Text",
-      Position = { 100, 42 },
+      Position = { 100, 68 },
       Size = { 106, 20 },
       FontSize = 10
     }
@@ -255,7 +265,7 @@ function GetControlLayout(props)
     table.insert(graphics, {
       Type = "Label",
       Text = "Instance Tag",
-      Position = { 5, 70 },
+      Position = { 5, 96 },
       Size = { 90, 16 },
       FontSize = 10,
       HTextAlign = "Right"
@@ -263,14 +273,14 @@ function GetControlLayout(props)
     table.insert(graphics, {
       Type = "Label",
       Text = "(from Tesira Designer)",
-      Position = { 210, 70 },
+      Position = { 210, 96 },
       Size = { 88, 16 },
       FontSize = 8
     })
     layout["InstanceTag"] = {
       PrettyName = "Setup~Instance Tag",
       Style = "Text",
-      Position = { 100, 68 },
+      Position = { 100, 94 },
       Size = { 106, 20 },
       FontSize = 10
     }
@@ -353,15 +363,22 @@ if Controls then
     return table.concat(parts, " ")
   end
 
+  -- Update a channel's toggle button legend to reflect its state
+  function UpdateButtonLegend(channel, stateOn)
+    Controls["State" .. channel].String = stateOn and "ON" or "OFF"
+  end
+
   -- Get the current state for a single channel
   function GetState(channel)
     local cmd = BuildCommand(InstanceTag, "get", "state", channel)
     SendCommand(cmd, function(response)
       local val = response:match('"value"%s*:%s*(%a+)')
       if val then
+        local boolVal = (val == "true")
         UpdatingFromDevice = true
-        Controls["State" .. channel].Boolean = (val == "true")
+        Controls["State" .. channel].Boolean = boolVal
         UpdatingFromDevice = false
+        UpdateButtonLegend(channel, boolVal)
         print("Tesira LogicState [" .. InstanceTag .. "]: ch" .. channel .. " state = " .. val)
       else
         print("Tesira LogicState [" .. InstanceTag .. "]: GetState ch" .. channel .. " unexpected: " .. response)
@@ -400,8 +417,8 @@ if Controls then
       local token = BaseToken .. "_state" .. ch
       local cmd = BuildCommand(InstanceTag, "subscribe", "state", ch, token) .. " 500"
       Notifications.Publish("tesira." .. SystemId .. ".subscribe", token .. "|" .. cmd)
+      print("Tesira LogicState [" .. InstanceTag .. "]: registered state subscription ch" .. ch .. " (" .. token .. ")")
     end
-    print("Tesira LogicState [" .. InstanceTag .. "]: registered " .. NumChannels .. " state subscription(s)")
   end
 
   -- Unregister subscriptions before reinit
@@ -451,14 +468,19 @@ if Controls then
     for ch = 1, NumChannels do
       local token = BaseToken .. "_state" .. ch
       local capturedCh = ch
+      local pushChannel = "tesira." .. SystemId .. ".push." .. token
+      print("Tesira LogicState [" .. InstanceTag .. "]: subscribing to push channel: " .. pushChannel)
       local noteId = Notifications.Subscribe(
-        "tesira." .. SystemId .. ".push." .. token,
+        pushChannel,
         function(id, data)
+          print("Tesira LogicState [" .. InstanceTag .. "]: push ch" .. capturedCh .. " raw data: [" .. tostring(data) .. "]")
           local trimmed = data:match("^%s*(.-)%s*$") or ""
           Timer.CallAfter(function()
+            local boolVal = (trimmed == "true")
             UpdatingFromDevice = true
-            Controls["State" .. capturedCh].Boolean = (trimmed == "true")
+            Controls["State" .. capturedCh].Boolean = boolVal
             UpdatingFromDevice = false
+            UpdateButtonLegend(capturedCh, boolVal)
           end, 0)
         end
       )
@@ -486,6 +508,11 @@ if Controls then
     IsInitialized = true
     Controls["Status"].Value = 0
     Controls["Status"].String = ""
+
+    -- Set initial button legends
+    for ch = 1, NumChannels do
+      UpdateButtonLegend(ch, Controls["State" .. ch].Boolean)
+    end
 
     -- Register Tesira subscriptions
     RegisterSubscriptions()
@@ -515,6 +542,7 @@ if Controls then
     Controls["State" .. idx].EventHandler = function(ctl)
       if IsInitialized and not UpdatingFromDevice then
         SetState(idx, ctl.Boolean)
+        UpdateButtonLegend(idx, ctl.Boolean)
       end
     end
   end
