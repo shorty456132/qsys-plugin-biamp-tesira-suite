@@ -1,0 +1,766 @@
+-- Biamp Tesira Controller Plugin
+-- Manages the SSH connection to a Biamp Tesira server (port 22) and routes
+-- TTP commands and subscription data to/from child plugins via Q-SYS Notifications.
+-- by Andrew Laiacano
+
+PluginInfo = {
+  Name = "Biamp Tesira~Controller",
+  Version = "1.0.0",
+  BuildVersion = "1.0.0.0",
+  Id = "3f7c9a12-b4e8-4d21-a953-6e1f2c8b7d04",
+  Author = "Andrew Laiacano",
+  Description = "Manages the SSH connection (port 22) to a Biamp Tesira server. " ..
+    "Routes TTP commands and subscription push messages to/from child plugins " ..
+    "using Q-SYS Notifications. All child plugins (Level, Mute, Mixer, etc.) " ..
+    "communicate through this Controller. Set the System ID to a unique name " ..
+    "if you have multiple Tesira systems on the same Q-SYS Core."
+}
+
+function GetColor(props)
+  return { 41, 121, 255 }
+end
+
+function GetPrettyName(props)
+  return "Biamp Tesira Controller v" .. PluginInfo.Version
+end
+
+PageNames = { "Control", "Setup" }
+
+function GetPages(props)
+  local pages = {}
+  for ix, name in ipairs(PageNames) do
+    table.insert(pages, { name = PageNames[ix] })
+  end
+  return pages
+end
+
+function GetModel(props)
+  local model = {}
+  -- No model variants for this plugin
+  table.insert(model, { "Biamp Tesira Controller" })
+  return model
+end
+
+function GetProperties()
+  local props = {}
+  -- No design-time properties required for the Controller plugin.
+  -- All settings (IP address, port, system ID) are configurable via
+  -- runtime controls on the Setup page so they can be changed without
+  -- re-uploading the design.
+  return props
+end
+
+function GetPins(props)
+  local pins = {}
+  -- No external pins required
+  return pins
+end
+
+function RectifyProperties(props)
+  -- No dynamic property adjustment needed
+  return props
+end
+
+function GetComponents(props)
+  local components = {}
+  -- No embedded components required
+  return components
+end
+
+function GetWiring(props)
+  local wiring = {}
+  -- No internal wiring required
+  return wiring
+end
+
+function GetControls(props)
+  local ctrls = {}
+  -- Setup page controls
+
+  table.insert(ctrls, {
+    Name = "SystemId",
+    ControlType = "Text",
+    Count = 1,
+    UserPin = false,
+    PinStyle = "None"
+  })
+
+  table.insert(ctrls, {
+    Name = "IPAddress",     -- reserved Q-SYS name: enables built-in IP address handling
+    ControlType = "Text",
+    Count = 1,
+    UserPin = true,
+    PinStyle = "Both"
+  })
+
+  table.insert(ctrls, {
+    Name = "Username",      -- reserved Q-SYS name: enables built-in credential handling
+    ControlType = "Text",   -- Tesira default (unprotected system): "default"
+    Count = 1,
+    UserPin = false,
+    PinStyle = "None"
+  })
+
+  table.insert(ctrls, {
+    Name = "Password",      -- reserved Q-SYS name: enables built-in credential handling
+    ControlType = "Text",   -- Tesira default (unprotected system): leave empty
+    Count = 1,
+    UserPin = false,
+    PinStyle = "None"
+  })
+
+  table.insert(ctrls, {
+    Name = "Connect",
+    ControlType = "Button",
+    ButtonType = "Toggle",
+    Count = 1,
+    UserPin = true,
+    PinStyle = "Both"
+  })
+
+  -- Control page controls
+
+  table.insert(ctrls, {
+    Name = "Status",
+    ControlType = "Indicator",
+    IndicatorType = "Status",
+    Count = 1,
+    UserPin = true,
+    PinStyle = "Output"
+  })
+
+  table.insert(ctrls, {
+    Name = "ConnectionState",
+    ControlType = "Indicator",
+    IndicatorType = "Text",
+    Count = 1,
+    UserPin = false,
+    PinStyle = "None"
+  })
+
+  table.insert(ctrls, {
+    Name = "QueueDepth",
+    ControlType = "Indicator",
+    IndicatorType = "Text",
+    Count = 1,
+    UserPin = false,
+    PinStyle = "None"
+  })
+  return ctrls
+end
+
+function GetControlLayout(props)
+  local layout = {}
+  local graphics = {}
+  local CurrentPage = PageNames[props["page_index"].Value]
+
+  -- Shared header graphic
+  table.insert(graphics, {
+    Type = "Header",
+    Text = "Biamp Tesira Controller",
+    Position = { 0, 0 },
+    Size = { 310, 32 }
+  })
+
+  if CurrentPage == "Control" then
+
+    -- Status LED + state text
+    table.insert(graphics, {
+      Type = "Label",
+      Text = "Connection",
+      Position = { 5, 44 },
+      Size = { 88, 16 },
+      FontSize = 10,
+      HTextAlign = "Right"
+    })
+
+    layout["Status"] = {
+      PrettyName = "Status",
+      Style = "StatusBullet",
+      Position = { 98, 44 },
+      Size = { 16, 16 }
+    }
+
+    layout["ConnectionState"] = {
+      PrettyName = "Connection State",
+      Style = "Text",
+      Position = { 118, 42 },
+      Size = { 182, 20 },
+      FontSize = 10,
+      IsReadOnly = true
+    }
+
+    -- Queue depth
+    table.insert(graphics, {
+      Type = "Label",
+      Text = "Queue Depth",
+      Position = { 5, 70 },
+      Size = { 88, 16 },
+      FontSize = 10,
+      HTextAlign = "Right"
+    })
+
+    layout["QueueDepth"] = {
+      PrettyName = "Queue Depth",
+      Style = "Text",
+      Position = { 98, 68 },
+      Size = { 60, 20 },
+      FontSize = 10,
+      IsReadOnly = true
+    }
+
+  elseif CurrentPage == "Setup" then
+
+    -- System ID
+    table.insert(graphics, {
+      Type = "Label",
+      Text = "System ID",
+      Position = { 5, 44 },
+      Size = { 88, 16 },
+      FontSize = 10,
+      HTextAlign = "Right"
+    })
+    table.insert(graphics, {
+      Type = "Label",
+      Text = "(match all child plugins)",
+      Position = { 212, 44 },
+      Size = { 96, 16 },
+      FontSize = 8
+    })
+    layout["SystemId"] = {
+      PrettyName = "Setup~System ID",
+      Style = "Text",
+      Position = { 98, 42 },
+      Size = { 110, 20 },
+      FontSize = 10
+    }
+
+    -- IP Address
+    table.insert(graphics, {
+      Type = "Label",
+      Text = "IP Address",
+      Position = { 5, 70 },
+      Size = { 88, 16 },
+      FontSize = 10,
+      HTextAlign = "Right"
+    })
+    layout["IPAddress"] = {
+      PrettyName = "Setup~IP Address",
+      Style = "Text",
+      Position = { 98, 68 },
+      Size = { 160, 20 },
+      FontSize = 10
+    }
+
+    -- Username
+    table.insert(graphics, {
+      Type = "Label",
+      Text = "Username",
+      Position = { 5, 96 },
+      Size = { 88, 16 },
+      FontSize = 10,
+      HTextAlign = "Right"
+    })
+    table.insert(graphics, {
+      Type = "Label",
+      Text = '(default: "default")',
+      Position = { 212, 96 },
+      Size = { 96, 16 },
+      FontSize = 8
+    })
+    layout["Username"] = {
+      PrettyName = "Setup~Username",
+      Style = "Text",
+      Position = { 98, 94 },
+      Size = { 110, 20 },
+      FontSize = 10
+    }
+
+    -- Password
+    table.insert(graphics, {
+      Type = "Label",
+      Text = "Password",
+      Position = { 5, 122 },
+      Size = { 88, 16 },
+      FontSize = 10,
+      HTextAlign = "Right"
+    })
+    table.insert(graphics, {
+      Type = "Label",
+      Text = "(empty if unprotected)",
+      Position = { 212, 122 },
+      Size = { 96, 16 },
+      FontSize = 8
+    })
+    layout["Password"] = {
+      PrettyName = "Setup~Password",
+      Style = "Text",
+      Position = { 98, 120 },
+      Size = { 110, 20 },
+      FontSize = 10
+    }
+
+    -- Connect toggle
+    table.insert(graphics, {
+      Type = "Label",
+      Text = "Connect",
+      Position = { 5, 148 },
+      Size = { 88, 20 },
+      FontSize = 10,
+      HTextAlign = "Right"
+    })
+    layout["Connect"] = {
+      PrettyName = "Setup~Connect",
+      Style = "Button",
+      ButtonStyle = "Toggle",
+      Position = { 98, 146 },
+      Size = { 80, 24 },
+      FontSize = 10,
+      Legend = "Connect"
+    }
+
+  end
+  return layout, graphics
+end
+
+if Controls then
+  --[[ Biamp Tesira Controller - Runtime
+    Manages an SSH connection to a Biamp Tesira server (port 22).
+
+    Connection flow (SSH handles all encryption and authentication automatically):
+      1. SSH:Connect(ip, 22, username, password)
+      2. SSH.Connected fires on successful login
+      3. Send: SESSION set verbose true
+      4. Receive: +OK  ->  State = "ready", notify child plugins, drain queue
+
+    Command routing (one command in-flight at a time):
+      - Child plugins publish to: tesira.<SystemId>.command
+        Format: "replyToken|TTP command string"
+      - Controller sends FIFO and publishes responses to:
+        tesira.<SystemId>.response.<replyToken>
+
+    Subscription routing:
+      - Child plugins register via: tesira.<SystemId>.subscribe
+        Format: "publishToken|TTP subscribe command"
+      - Tesira push messages (! "publishToken":"..." "value":...)
+        are published on: tesira.<SystemId>.push.<publishToken>
+      - All subscriptions are stored and resubmitted on reconnect and
+        every 30 seconds to survive Tesira reboots / config pushes.
+
+    Connected broadcast:
+      - tesira.<SystemId>.connected  published when session is fully ready,
+        so child plugins know to refresh values and reregister subscriptions.
+
+    Credentials (Biamp Tesira defaults):
+      - Username: "default"
+      - Password: ""  (empty on unprotected systems)
+      - Must be logged in as 'controller' level or higher to set values;
+        'observer' level can only query.
+  ]]
+
+  --------------------
+  -- Variables -------
+  --------------------
+  SystemId          = ""
+  State             = "disconnected"  -- disconnected | initializing | ready
+  RxBuffer          = ""
+  CommandQueue      = {}              -- FIFO: { cmd, replyToken }
+  CurrentReplyToken = nil
+  IsProcessing      = false
+  Subscriptions     = {}              -- publishToken -> subscribeCmd (for resubscription)
+  NotificationIds   = {}              -- Notification IDs to clean up on reinit
+  -- End Variables ---
+
+  --------------------
+  -- Functions -------
+  --------------------
+
+  function UpdateStatus()
+    if State == "disconnected" then
+      Controls["Status"].Value = 5
+      Controls["ConnectionState"].String = "Disconnected"
+    elseif State == "initializing" then
+      Controls["Status"].Value = 2    -- yellow / initializing
+      Controls["ConnectionState"].String = "Logging in..."
+    elseif State == "ready" then
+      Controls["Status"].Value = 0    -- green / OK
+      Controls["ConnectionState"].String = "Ready  [" .. Controls["IPAddress"].String .. "]"
+    end
+    Controls["QueueDepth"].String = tostring(#CommandQueue + (IsProcessing and 1 or 0))
+  end
+
+  -- Write a TTP command to the SSH socket, terminated with LF as required by TTP.
+  function Send(cmd)
+    if not SSH.IsConnected then
+      print("Tesira Controller: Cannot send -- not connected: " .. cmd)
+      return
+    end
+    print("TX: " .. cmd)
+    SSH:Write(cmd .. "\n")
+    CommandTimeoutTimer:Stop()
+    CommandTimeoutTimer:Start(5)
+  end
+
+  function EnqueueCommand(replyToken, cmd)
+    table.insert(CommandQueue, { cmd = cmd, replyToken = replyToken })
+    UpdateStatus()
+    ProcessQueue()
+  end
+
+  function ProcessQueue()
+    if IsProcessing or #CommandQueue == 0 or State ~= "ready" then return end
+    IsProcessing = true
+    local item = table.remove(CommandQueue, 1)
+    CurrentReplyToken = item.replyToken
+    Send(item.cmd)
+    UpdateStatus()
+  end
+
+  -- Called when a +OK or -ERR line is received for the current in-flight command.
+  function HandleCommandResponse(data)
+    CommandTimeoutTimer:Stop()
+    IsProcessing = false
+    if CurrentReplyToken and CurrentReplyToken ~= "" then
+      -- Internal commands use __ prefix -- no child notification needed
+      if not CurrentReplyToken:find("^__") then
+        Notifications.Publish(
+          "tesira." .. SystemId .. ".response." .. CurrentReplyToken,
+          data
+        )
+      end
+    end
+    CurrentReplyToken = nil
+    ProcessQueue()
+    UpdateStatus()
+  end
+
+  -- Parse a subscription push line:
+  --   Verbose first:  ! "publishToken":"token" "value":val +OK
+  --   Verbose after:  ! "publishToken":"token" "value":val
+  --   Non-verbose:    ! "token" val
+  function HandleSubscriptionPush(line)
+    local token, value
+    -- Try verbose format first
+    token, value = line:match('"publishToken"%s*:%s*"([^"]+)"%s+"value"%s*:%s*([^\r\n]+)')
+    if not token then
+      -- Try non-verbose / fallback format
+      token, value = line:match('^!%s+"([^"]+)"%s+([^\r\n]+)')
+    end
+
+    -- The very first response to a subscribe command has +OK appended on the same line
+    local hasOK = line:find("+OK", 1, true)
+    if value then
+      value = value:gsub("%s*%+OK%s*$", ""):match("^%s*(.-)%s*$")
+    end
+
+    -- Route push value to child plugins
+    if token then
+      Notifications.Publish("tesira." .. SystemId .. ".push." .. token, value or "")
+    end
+
+    -- If this was the initial subscribe response it also clears the command queue
+    if hasOK and IsProcessing then
+      HandleCommandResponse("+OK")
+    end
+  end
+
+  -- Parse a complete TTP response line.
+  function ParseResponse(line)
+    print("RX: " .. line)
+
+    if line:sub(1, 1) == "!" then
+      HandleSubscriptionPush(line)
+      return
+    end
+
+    if line:find("^%+OK") or line:find("^%-ERR") or
+       line:find("^%-CANNOT") or line:find("^%-GENERAL") then
+      HandleCommandResponse(line)
+      return
+    end
+    -- Blank lines, echoes, etc. are ignored
+  end
+
+  -- Read complete newline-delimited lines from RxBuffer and dispatch them.
+  -- SSH handles all encryption and framing -- no IAC stripping needed.
+  function ProcessBuffer()
+    while true do
+      local s, e = RxBuffer:find("\n")
+      if not s then break end
+      local line = RxBuffer:sub(1, s - 1):gsub("\r", ""):match("^%s*(.-)%s*$")
+      RxBuffer = RxBuffer:sub(e + 1)
+
+      if line ~= "" then
+        if State == "initializing" then
+          -- Waiting for the +OK response to SESSION set verbose true
+          if line:find("^%+OK") then
+            print("Tesira Controller: Session ready -- verbose mode confirmed")
+            CommandTimeoutTimer:Stop()
+            IsProcessing = false
+            CurrentReplyToken = nil
+            State = "ready"
+            -- Notify all child plugins that the controller is up
+            Notifications.Publish("tesira." .. SystemId .. ".connected", "true")
+            -- Resubscribe any subscriptions registered before this connect
+            for token, cmd in pairs(Subscriptions) do
+              EnqueueCommand("__resub_" .. token, cmd)
+            end
+            ResubscribeTimer:Start(30)
+            UpdateStatus()
+            ProcessQueue()
+          end
+        elseif State == "ready" then
+          ParseResponse(line)
+        end
+        -- Lines received while "disconnected" are discarded
+      end
+    end
+  end
+
+  -- Reset all connection state cleanly.
+  function Disconnect()
+    CommandTimeoutTimer:Stop()
+    ResubscribeTimer:Stop()
+    State = "disconnected"
+    RxBuffer = ""
+    CommandQueue = {}
+    IsProcessing = false
+    CurrentReplyToken = nil
+    UpdateStatus()
+  end
+
+  -- Main init: registers Notification channels then connects via SSH.
+  function Initialize()
+    -- Clean up previous Notification listeners
+    for _, id in ipairs(NotificationIds) do
+      Notifications.Unsubscribe(id)
+    end
+    NotificationIds = {}
+    Subscriptions = {}
+    CommandQueue = {}
+    IsProcessing = false
+    CurrentReplyToken = nil
+    State = "disconnected"
+    RxBuffer = ""
+
+    SystemId = Controls["SystemId"].String
+    if SystemId == "" then
+      SystemId = "Tesira1"
+      Controls["SystemId"].String = SystemId
+      print("Tesira Controller: SystemId defaulted to 'Tesira1'")
+    end
+
+    -- Child plugins send commands here: "replyToken|TTP command"
+    local cmdId = Notifications.Subscribe(
+      "tesira." .. SystemId .. ".command",
+      function(id, data)
+        local replyToken, cmd = data:match("^([^|]+)|(.+)$")
+        if replyToken and cmd then
+          EnqueueCommand(replyToken, cmd)
+        else
+          print("Tesira Controller: Malformed command data: " .. tostring(data))
+        end
+      end
+    )
+    table.insert(NotificationIds, cmdId)
+
+    -- Child plugins register Tesira subscriptions here: "publishToken|subscribe cmd"
+    local subId = Notifications.Subscribe(
+      "tesira." .. SystemId .. ".subscribe",
+      function(id, data)
+        local token, cmd = data:match("^([^|]+)|(.+)$")
+        if token and cmd then
+          Subscriptions[token] = cmd
+          EnqueueCommand("__sub_" .. token, cmd)
+        else
+          print("Tesira Controller: Malformed subscribe data: " .. tostring(data))
+        end
+      end
+    )
+    table.insert(NotificationIds, subId)
+
+    -- Child plugins cancel subscriptions here: "publishToken|unsubscribe cmd"
+    local unsubId = Notifications.Subscribe(
+      "tesira." .. SystemId .. ".unsubscribe",
+      function(id, data)
+        local token, cmd = data:match("^([^|]+)|(.+)$")
+        if token then Subscriptions[token] = nil end
+        if cmd then
+          EnqueueCommand("__unsub_" .. tostring(token), cmd)
+        end
+      end
+    )
+    table.insert(NotificationIds, unsubId)
+
+    UpdateStatus()
+
+    local ip       = Controls["IPAddress"].String
+    local username = Controls["Username"].String
+    local password = Controls["Password"].String
+
+    if ip ~= "" and Controls["Connect"].Boolean then
+      State = "initializing"
+      UpdateStatus()
+      print(string.format(
+        "Tesira Controller: SSH connecting to %s:22  user='%s'  [SystemId=%s]",
+        ip, username, SystemId
+      ))
+      local ok, err = pcall(function()
+        SSH:Connect(ip, 22, username, password)
+      end)
+      if not ok then
+        print("Tesira Controller: Connect error: " .. tostring(err))
+        Disconnect()
+      end
+    end
+  end
+  -- End Functions ---
+
+  --------------------
+  -- EventHandlers ---
+  --------------------
+
+  -- Do NOT declare SSH as local -- it will be garbage collected.
+  SSH = Ssh.New()
+  SSH.IsInteractive    = true  -- Tesira SSH requires a PTY; without this the session drops immediately after login
+  SSH.ReadTimeout      = 0     -- disabled; CommandTimeoutTimer handles stalls
+  SSH.WriteTimeout     = 0
+  SSH.ReconnectTimeout = 5
+
+  SSH.Connected = function()
+    print("Tesira Controller: SSH login successful -- initializing TTP session")
+    State = "initializing"
+    RxBuffer = ""
+    -- Send SESSION set verbose true immediately after successful login.
+    -- The +OK response is handled in ProcessBuffer (initializing branch).
+    SSH:Write("SESSION set verbose true\n")
+    CommandTimeoutTimer:Start(5)
+    IsProcessing = true
+    CurrentReplyToken = "__session_init__"
+    UpdateStatus()
+  end
+
+  SSH.Reconnect = function()
+    print("Tesira Controller: SSH reconnecting...")
+    State = "initializing"
+    RxBuffer = ""
+    CommandQueue = {}
+    IsProcessing = false
+    CurrentReplyToken = nil
+    UpdateStatus()
+  end
+
+  SSH.LoginFailed = function()
+    print("Tesira Controller: SSH login FAILED -- check Username / Password on Setup page")
+    Controls["Status"].Value = 5
+    Controls["ConnectionState"].String = "Login Failed"
+    Disconnect()
+  end
+
+  SSH.Data = function()
+    local raw = SSH:Read(SSH.BufferLength)
+    if raw and #raw > 0 then
+      RxBuffer = RxBuffer .. raw
+      ProcessBuffer()
+    end
+  end
+
+  SSH.Closed = function()
+    print("Tesira Controller: SSH connection closed")
+    Disconnect()
+  end
+
+  SSH.Error = function(sock, err)
+    print("Tesira Controller: SSH error: " .. tostring(err))
+    Disconnect()
+  end
+
+  SSH.Timeout = function()
+    print("Tesira Controller: SSH timeout")
+    Disconnect()
+  end
+
+  -- Per-command timeout: prevents the queue stalling if a response never arrives
+  CommandTimeoutTimer = Timer.New()
+  CommandTimeoutTimer.EventHandler = function()
+    print("Tesira Controller: Command timeout -- clearing: " .. tostring(CurrentReplyToken))
+    if CurrentReplyToken and not CurrentReplyToken:find("^__") then
+      Notifications.Publish(
+        "tesira." .. SystemId .. ".response." .. CurrentReplyToken,
+        "-ERR Timeout"
+      )
+    end
+    IsProcessing = false
+    CurrentReplyToken = nil
+    UpdateStatus()
+    ProcessQueue()
+  end
+
+  -- Periodic resubscription: keeps subscriptions alive after Tesira reboots/config pushes
+  ResubscribeTimer = Timer.New()
+  ResubscribeTimer.EventHandler = function()
+    if State == "ready" then
+      local count = 0
+      for token, cmd in pairs(Subscriptions) do
+        EnqueueCommand("__resub_" .. token, cmd)
+        count = count + 1
+      end
+      if count > 0 then
+        print("Tesira Controller: Resubscribing " .. count .. " subscription(s)")
+      end
+    end
+  end
+
+  Controls["Connect"].EventHandler = function(ctl)
+    if ctl.Boolean then
+      Initialize()
+    else
+      SSH:Disconnect()
+      Disconnect()
+      print("Tesira Controller: Manually disconnected")
+    end
+  end
+
+  Controls["IPAddress"].EventHandler = function(ctl)
+    if Controls["Connect"].Boolean then
+      SSH:Disconnect()
+      Disconnect()
+      Initialize()
+    end
+  end
+
+  Controls["Username"].EventHandler = function(ctl)
+    if Controls["Connect"].Boolean then
+      SSH:Disconnect()
+      Disconnect()
+      Initialize()
+    end
+  end
+
+  Controls["Password"].EventHandler = function(ctl)
+    if Controls["Connect"].Boolean then
+      SSH:Disconnect()
+      Disconnect()
+      Initialize()
+    end
+  end
+
+  Controls["SystemId"].EventHandler = function(ctl)
+    SSH:Disconnect()
+    Disconnect()
+    Initialize()
+  end
+  --End Eventhandlers-
+
+  -- Initialize --
+  -- Apply defaults on first load
+  if Controls["SystemId"].String == "" then
+    Controls["SystemId"].String = "Tesira1"
+  end
+  if Controls["Username"].String == "" then
+    Controls["Username"].String = "default"
+  end
+  -- Password intentionally left blank (correct for unprotected Tesira systems)
+
+  Initialize()
+end

@@ -1,0 +1,4 @@
+-- No design-time properties required for the Controller plugin.
+-- All settings (IP address, port, system ID) are configurable via
+-- runtime controls on the Setup page so they can be changed without
+-- re-uploading the design.
