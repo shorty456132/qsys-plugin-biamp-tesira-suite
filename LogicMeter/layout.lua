@@ -1,0 +1,125 @@
+local CurrentPage = PageNames[props["page_index"].Value]
+local NumChannels = props["NumChannels"].Value
+
+if CurrentPage == "Control" then
+
+  table.insert(graphics, {
+    Type = "Header",
+    Text = "Logic Meter",
+    Position = { 0, 0 },
+    Size = { 200, 32 }
+  })
+
+  table.insert(graphics, {
+    Type = "Label",
+    Text = "Ch",
+    Position = { 5, 40 },
+    Size = { 22, 16 },
+    FontSize = 9,
+    HTextAlign = "Center"
+  })
+  table.insert(graphics, {
+    Type = "Label",
+    Text = "Value",
+    Position = { 31, 40 },
+    Size = { 50, 16 },
+    FontSize = 9,
+    HTextAlign = "Center"
+  })
+
+  local rowY = 58
+  local rowHeight = 28
+
+  for i = 1, NumChannels do
+    local y = rowY + (i - 1) * rowHeight
+
+    table.insert(graphics, {
+      Type = "Label",
+      Text = tostring(i),
+      Position = { 5, y + 4 },
+      Size = { 22, 16 },
+      FontSize = 10,
+      HTextAlign = "Center"
+    })
+
+    layout["Value" .. i] = {
+      PrettyName = string.format("Values~Channel %i~Value", i),
+      Style = "Led",
+      Position = { 43, y + 4 },
+      Size = { 16, 16 }
+    }
+  end
+
+elseif CurrentPage == "Setup" then
+
+  table.insert(graphics, {
+    Type = "Header",
+    Text = "Logic Meter — Setup",
+    Position = { 0, 0 },
+    Size = { 300, 32 }
+  })
+
+  table.insert(graphics, {
+    Type = "Label",
+    Text = "Status",
+    Position = { 5, 44 },
+    Size = { 90, 16 },
+    FontSize = 10,
+    HTextAlign = "Right"
+  })
+  layout["Status"] = {
+    PrettyName = "Setup~Status",
+    Style = "Text",
+    Position = { 100, 42 },
+    Size = { 106, 20 },
+    FontSize = 10,
+    IsReadOnly = true
+  }
+
+  table.insert(graphics, {
+    Type = "Label",
+    Text = "System ID",
+    Position = { 5, 70 },
+    Size = { 90, 16 },
+    FontSize = 10,
+    HTextAlign = "Right"
+  })
+  table.insert(graphics, {
+    Type = "Label",
+    Text = "(match Controller plugin)",
+    Position = { 210, 70 },
+    Size = { 88, 16 },
+    FontSize = 8
+  })
+  layout["SystemId"] = {
+    PrettyName = "Setup~System ID",
+    Style = "Text",
+    Position = { 100, 68 },
+    Size = { 106, 20 },
+    FontSize = 10
+  }
+
+  table.insert(graphics, {
+    Type = "Label",
+    Text = "Instance Tag",
+    Position = { 5, 96 },
+    Size = { 90, 16 },
+    FontSize = 10,
+    HTextAlign = "Right"
+  })
+  table.insert(graphics, {
+    Type = "Label",
+    Text = "(from Tesira Designer)",
+    Position = { 210, 96 },
+    Size = { 88, 16 },
+    FontSize = 8
+  })
+  layout["InstanceTag"] = {
+    PrettyName = "Setup~Instance Tag",
+    Style = "Text",
+    Position = { 100, 94 },
+    Size = { 106, 20 },
+    FontSize = 10
+  }
+
+end

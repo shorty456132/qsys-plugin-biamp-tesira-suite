@@ -1,0 +1,1 @@
+-- No dynamic property adjustment needed
