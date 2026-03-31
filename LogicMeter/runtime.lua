@@ -88,7 +88,7 @@ function RegisterSubscriptions()
 
   for ch = 1, NumChannels do
     local token = BaseToken .. "_value" .. ch
-    local cmd = BuildCommand(InstanceTag, "subscribe", "value", ch, token) .. " 500"
+    local cmd = BuildCommand(InstanceTag, "subscribe", "state", ch, token) .. " 500"
     Notifications.Publish("tesira." .. SystemId .. ".subscribe", token .. "|" .. cmd)
     print("Tesira LogicMeter [" .. InstanceTag .. "]: registered value subscription ch" .. ch .. " (" .. token .. ")")
   end
@@ -100,7 +100,7 @@ function UnregisterSubscriptions()
 
   for ch = 1, NumChannels do
     local token = BaseToken .. "_value" .. ch
-    local cmd = BuildCommand(InstanceTag, "unsubscribe", "value", ch, token)
+    local cmd = BuildCommand(InstanceTag, "unsubscribe", "state", ch, token)
     Notifications.Publish("tesira." .. SystemId .. ".unsubscribe", token .. "|" .. cmd)
   end
 end

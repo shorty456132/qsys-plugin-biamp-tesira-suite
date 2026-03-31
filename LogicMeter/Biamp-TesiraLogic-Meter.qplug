@@ -1,0 +1,469 @@
+-- Biamp Tesira Logic Meter Plugin
+-- Monitors a Tesira Logic Meter block (read-only boolean per channel)
+-- via the Tesira Controller plugin.
+-- Communicates through Q-SYS Notifications — no direct network connection.
+-- by Andrew Laiacano
+
+PluginInfo = {
+  Name = "Biamp Tesira~Logic Meter",
+  Version = "1.0.0",
+  BuildVersion = "1.0.0.0",
+  Id = "c3e5a2d8-17b4-4f9a-be23-6e9f4c8b0d72",
+  Author = "Andrew Laiacano",
+  Description = "Monitors a Biamp Tesira Logic Meter block. Provides LED indicators " ..
+    "for each channel with live subscription updates. " ..
+    "Communicates through the Tesira Controller plugin via Q-SYS Notifications. " ..
+    "Set the System ID to match the Controller plugin, then configure the " ..
+    "Instance Tag on the Setup page."
+}
+
+function GetColor(props)
+  return { 80, 160, 80 }
+end
+
+function GetPrettyName(props)
+  return "Biamp Tesira Logic Meter v" .. PluginInfo.Version
+end
+
+PageNames = { "Control", "Setup" }
+
+function GetPages(props)
+  local pages = {}
+  for ix, name in ipairs(PageNames) do
+    table.insert(pages, { name = PageNames[ix] })
+  end
+  return pages
+end
+
+function GetModel(props)
+  local model = {}
+  table.insert(model, { "Biamp Tesira Logic Meter" })
+  return model
+end
+
+function GetProperties()
+  local props = {}
+  table.insert(props, {
+    Name = "NumChannels",
+    Type = "integer",
+    Value = 4,
+    Min = 1,
+    Max = 16
+  })
+  return props
+end
+
+function GetPins(props)
+  local pins = {}
+  -- No external pins required
+  return pins
+end
+
+function RectifyProperties(props)
+  -- No dynamic property adjustment needed
+  return props
+end
+
+function GetComponents(props)
+  local components = {}
+  -- No embedded components required
+  return components
+end
+
+function GetWiring(props)
+  local wiring = {}
+  -- No internal wiring required
+  return wiring
+end
+
+function GetControls(props)
+  local ctrls = {}
+  local NumChannels = props["NumChannels"].Value
+
+  for i = 1, NumChannels do
+    table.insert(ctrls, {
+      Name = "Value" .. i,
+      ControlType = "Indicator",
+      IndicatorType = "Led",
+      Count = 1,
+      UserPin = true,
+      PinStyle = "Output"
+    })
+  end
+
+  table.insert(ctrls, {
+    Name = "Status",
+    ControlType = "Indicator",
+    IndicatorType = "Status",
+    Count = 1,
+    UserPin = true,
+    PinStyle = "Output"
+  })
+
+  table.insert(ctrls, {
+    Name = "SystemId",
+    ControlType = "Text",
+    Count = 1,
+    UserPin = false,
+    PinStyle = "None"
+  })
+
+  table.insert(ctrls, {
+    Name = "InstanceTag",
+    ControlType = "Text",
+    Count = 1,
+    UserPin = false,
+    PinStyle = "None"
+  })
+  return ctrls
+end
+
+function GetControlLayout(props)
+  local layout = {}
+  local graphics = {}
+  local CurrentPage = PageNames[props["page_index"].Value]
+  local NumChannels = props["NumChannels"].Value
+
+  if CurrentPage == "Control" then
+
+    table.insert(graphics, {
+      Type = "Header",
+      Text = "Logic Meter",
+      Position = { 0, 0 },
+      Size = { 200, 32 }
+    })
+
+    table.insert(graphics, {
+      Type = "Label",
+      Text = "Ch",
+      Position = { 5, 40 },
+      Size = { 22, 16 },
+      FontSize = 9,
+      HTextAlign = "Center"
+    })
+    table.insert(graphics, {
+      Type = "Label",
+      Text = "Value",
+      Position = { 31, 40 },
+      Size = { 50, 16 },
+      FontSize = 9,
+      HTextAlign = "Center"
+    })
+
+    local rowY = 58
+    local rowHeight = 28
+
+    for i = 1, NumChannels do
+      local y = rowY + (i - 1) * rowHeight
+
+      table.insert(graphics, {
+        Type = "Label",
+        Text = tostring(i),
+        Position = { 5, y + 4 },
+        Size = { 22, 16 },
+        FontSize = 10,
+        HTextAlign = "Center"
+      })
+
+      layout["Value" .. i] = {
+        PrettyName = string.format("Values~Channel %i~Value", i),
+        Style = "Led",
+        Position = { 43, y + 4 },
+        Size = { 16, 16 }
+      }
+    end
+
+  elseif CurrentPage == "Setup" then
+
+    table.insert(graphics, {
+      Type = "Header",
+      Text = "Logic Meter — Setup",
+      Position = { 0, 0 },
+      Size = { 300, 32 }
+    })
+
+    table.insert(graphics, {
+      Type = "Label",
+      Text = "Status",
+      Position = { 5, 44 },
+      Size = { 90, 16 },
+      FontSize = 10,
+      HTextAlign = "Right"
+    })
+    layout["Status"] = {
+      PrettyName = "Setup~Status",
+      Style = "Text",
+      Position = { 100, 42 },
+      Size = { 106, 20 },
+      FontSize = 10,
+      IsReadOnly = true
+    }
+
+    table.insert(graphics, {
+      Type = "Label",
+      Text = "System ID",
+      Position = { 5, 70 },
+      Size = { 90, 16 },
+      FontSize = 10,
+      HTextAlign = "Right"
+    })
+    table.insert(graphics, {
+      Type = "Label",
+      Text = "(match Controller plugin)",
+      Position = { 210, 70 },
+      Size = { 88, 16 },
+      FontSize = 8
+    })
+    layout["SystemId"] = {
+      PrettyName = "Setup~System ID",
+      Style = "Text",
+      Position = { 100, 68 },
+      Size = { 106, 20 },
+      FontSize = 10
+    }
+
+    table.insert(graphics, {
+      Type = "Label",
+      Text = "Instance Tag",
+      Position = { 5, 96 },
+      Size = { 90, 16 },
+      FontSize = 10,
+      HTextAlign = "Right"
+    })
+    table.insert(graphics, {
+      Type = "Label",
+      Text = "(from Tesira Designer)",
+      Position = { 210, 96 },
+      Size = { 88, 16 },
+      FontSize = 8
+    })
+    layout["InstanceTag"] = {
+      PrettyName = "Setup~Instance Tag",
+      Style = "Text",
+      Position = { 100, 94 },
+      Size = { 106, 20 },
+      FontSize = 10
+    }
+
+  end
+  return layout, graphics
+end
+
+if Controls then
+  --[[ Biamp Tesira Logic Meter — Runtime
+
+    Monitors a Tesira Logic Meter block (read-only boolean per channel).
+    All communication goes through the Tesira Controller plugin via Q-SYS Notifications.
+
+    TTP commands used:
+      <InstanceTag> get value <channel>                             — get current value
+      <InstanceTag> subscribe value <channel> <token> <rate>        — subscribe to live updates
+      <InstanceTag> unsubscribe value <channel> <token>             — unsubscribe
+
+    Notification channels used:
+      PUBLISH  tesira.<SystemId>.command          "replyToken|TTP command"
+      SUBSCRIBE tesira.<SystemId>.response.<token>  "+OK ..." or "-ERR ..."
+      PUBLISH  tesira.<SystemId>.subscribe        "publishToken|subscribe cmd"
+      PUBLISH  tesira.<SystemId>.unsubscribe      "publishToken|unsubscribe cmd"
+      SUBSCRIBE tesira.<SystemId>.push.<token>    "true" or "false"
+      SUBSCRIBE tesira.<SystemId>.connected       "true"
+  ]]
+
+  --------------------
+  -- Variables -------
+  --------------------
+  SystemId           = ""
+  InstanceTag        = ""
+  BaseToken          = ""
+  CommandCounter     = 0
+  IsInitialized      = false
+  NotificationIds    = {}
+  NumChannels        = Properties["NumChannels"].Value
+  -- End Variables ---
+
+  --------------------
+  -- Functions -------
+  --------------------
+
+  function GetReplyToken()
+    CommandCounter = CommandCounter + 1
+    return BaseToken .. "_r" .. CommandCounter
+  end
+
+  function SendCommand(cmd, callback)
+    local replyToken = GetReplyToken()
+    local noteId
+    noteId = Notifications.Subscribe(
+      "tesira." .. SystemId .. ".response." .. replyToken,
+      function(id, data)
+        Timer.CallAfter(function()
+          Notifications.Unsubscribe(noteId)
+          if callback then callback(data) end
+        end, 0)
+      end
+    )
+    Notifications.Publish("tesira." .. SystemId .. ".command", replyToken .. "|" .. cmd)
+  end
+
+  function BuildCommand(instanceTag, command, attribute, index, value)
+    local parts = {}
+    if instanceTag:find(" ") then
+      table.insert(parts, '"' .. instanceTag .. '"')
+    else
+      table.insert(parts, instanceTag)
+    end
+    table.insert(parts, command)
+    table.insert(parts, attribute)
+    if index ~= nil then table.insert(parts, tostring(index)) end
+    if value ~= nil then table.insert(parts, tostring(value)) end
+    return table.concat(parts, " ")
+  end
+
+  -- Get the current value for a single channel
+  function GetValue(channel)
+    local cmd = BuildCommand(InstanceTag, "get", "value", channel)
+    SendCommand(cmd, function(response)
+      local val = response:match('"value"%s*:%s*(%a+)')
+      if val then
+        local boolVal = (val == "true")
+        Controls["Value" .. channel].Boolean = boolVal
+        print("Tesira LogicMeter [" .. InstanceTag .. "]: ch" .. channel .. " value = " .. val)
+      else
+        print("Tesira LogicMeter [" .. InstanceTag .. "]: GetValue ch" .. channel .. " unexpected: " .. response)
+      end
+    end)
+  end
+
+  -- Register value subscriptions for all channels
+  function RegisterSubscriptions()
+    if SystemId == "" or InstanceTag == "" then return end
+
+    for ch = 1, NumChannels do
+      local token = BaseToken .. "_value" .. ch
+      local cmd = BuildCommand(InstanceTag, "subscribe", "state", ch, token) .. " 500"
+      Notifications.Publish("tesira." .. SystemId .. ".subscribe", token .. "|" .. cmd)
+      print("Tesira LogicMeter [" .. InstanceTag .. "]: registered value subscription ch" .. ch .. " (" .. token .. ")")
+    end
+  end
+
+  -- Unregister subscriptions before reinit
+  function UnregisterSubscriptions()
+    if SystemId == "" or InstanceTag == "" then return end
+
+    for ch = 1, NumChannels do
+      local token = BaseToken .. "_value" .. ch
+      local cmd = BuildCommand(InstanceTag, "unsubscribe", "state", ch, token)
+      Notifications.Publish("tesira." .. SystemId .. ".unsubscribe", token .. "|" .. cmd)
+    end
+  end
+
+  function Initialize()
+    -- Unregister old Tesira subscriptions before globals change
+    UnregisterSubscriptions()
+
+    -- Clean up previous Notification subscriptions
+    for _, id in ipairs(NotificationIds) do
+      Notifications.Unsubscribe(id)
+    end
+    NotificationIds = {}
+    IsInitialized = false
+
+    SystemId    = Controls["SystemId"].String
+    InstanceTag = Controls["InstanceTag"].String
+
+    -- Validate required fields
+    if SystemId == "" then
+      Controls["Status"].Value = 5
+      Controls["Status"].String = "No System ID"
+      print("Tesira LogicMeter: SystemId not configured — set on Setup page")
+      return
+    end
+    if InstanceTag == "" then
+      Controls["Status"].Value = 5
+      Controls["Status"].String = "No Instance Tag"
+      print("Tesira LogicMeter: InstanceTag not configured — set on Setup page")
+      return
+    end
+
+    -- Derive unique base token
+    local safeTag = InstanceTag:gsub("[^%w]", "_"):gsub("_+", "_"):gsub("^_", ""):gsub("_$", "")
+    BaseToken = safeTag .. "_lm"
+
+    -- Subscribe to live value push updates per channel
+    for ch = 1, NumChannels do
+      local token = BaseToken .. "_value" .. ch
+      local capturedCh = ch
+      local pushChannel = "tesira." .. SystemId .. ".push." .. token
+      print("Tesira LogicMeter [" .. InstanceTag .. "]: subscribing to push channel: " .. pushChannel)
+      local noteId = Notifications.Subscribe(
+        pushChannel,
+        function(id, data)
+          print("Tesira LogicMeter [" .. InstanceTag .. "]: push ch" .. capturedCh .. " raw data: [" .. tostring(data) .. "]")
+          local trimmed = data:match("^%s*(.-)%s*$") or ""
+          Timer.CallAfter(function()
+            Controls["Value" .. capturedCh].Boolean = (trimmed == "true")
+          end, 0)
+        end
+      )
+      table.insert(NotificationIds, noteId)
+    end
+
+    -- Subscribe to controller reconnect
+    local connNoteId = Notifications.Subscribe(
+      "tesira." .. SystemId .. ".connected",
+      function(id, data)
+        Timer.CallAfter(function()
+          print("Tesira LogicMeter [" .. InstanceTag .. "]: controller reconnected — refreshing")
+          RegisterSubscriptions()
+          Timer.CallAfter(function()
+            for ch = 1, NumChannels do
+              GetValue(ch)
+            end
+          end, 1.5)
+        end, 0)
+      end
+    )
+    table.insert(NotificationIds, connNoteId)
+
+    IsInitialized = true
+    Controls["Status"].Value = 0
+    Controls["Status"].String = ""
+
+    -- Register Tesira subscriptions
+    RegisterSubscriptions()
+
+    -- Fetch initial values
+    Timer.CallAfter(function()
+      for ch = 1, NumChannels do
+        GetValue(ch)
+      end
+    end, 1)
+
+    print(string.format(
+      "Tesira LogicMeter: Initialized — InstanceTag='%s' Channels=%d SystemId='%s'",
+      InstanceTag, NumChannels, SystemId
+    ))
+  end
+  -- End Functions ---
+
+  --------------------
+  -- EventHandlers ---
+  --------------------
+
+  -- Re-initialize when Setup controls change
+  Controls["SystemId"].EventHandler = function()
+    Initialize()
+  end
+
+  Controls["InstanceTag"].EventHandler = function()
+    Initialize()
+  end
+  --End Eventhandlers-
+
+  -- Initialize --
+  if Controls["SystemId"].String == "" then
+    Controls["SystemId"].String = "Tesira1"
+  end
+
+  Timer.CallAfter(Initialize, 2)
+end
